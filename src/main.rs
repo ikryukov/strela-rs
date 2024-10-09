@@ -2,7 +2,7 @@
 
 extern crate nalgebra_glm as glm;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 use tracing::debug;
 
@@ -21,6 +21,7 @@ struct RenderView {}
 
 #[derive(Clone)]
 struct RenderViewCallback {
+    // TODO: rework with arc mutex?
     receiver: Arc<Receiver<Vec<Color>>>,
 }
 
@@ -250,8 +251,13 @@ impl RenderView {
 }
 
 #[derive(Debug)]
+struct Settings {
+    color: glm::Vec3,
+}
+
+#[derive(Debug)]
 enum PaneType {
-    Settings,
+    Settings(Arc<Mutex<Settings>>),
     Render(Arc<Receiver<Vec<Color>>>),
 }
 
@@ -288,12 +294,20 @@ impl egui_tiles::Behavior<Pane> for TreeBehavior {
         pane: &mut Pane,
     ) -> egui_tiles::UiResponse {
         match &pane.kind {
-            PaneType::Settings => {
-                // Give each pane a unique color:
-                let color = egui::epaint::Hsva::new(0.103 * pane.nr as f32, 0.5, 0.5, 1.0);
-                ui.painter().rect_filled(ui.max_rect(), 0.0, color);
-
-                ui.label(format!("The contents of pane {}.", pane.nr));
+            PaneType::Settings(settings) => {
+                ui.label(format!("Settings."));
+                // let color = settings.as_mut_slice();
+                // if let Some(color_array) = color.get_mut(0..3) {
+                //     ui.color_edit_button_rgb(color_array.try_into().unwrap());
+                // }
+                // Acquire a lock to modify settings
+                if let Ok(mut settings) = settings.lock() {
+                    let color = settings.color.as_mut();
+                    ui.color_edit_button_rgb(color);
+                } else {
+                    ui.label("Failed to acquire settings lock.");
+                }
+                // ui.color_edit_button_rgb(color);
             }
             PaneType::Render(rx) => {
                 // ui.checkbox(&mut self.checked, "Checked");
@@ -349,6 +363,7 @@ struct Editor {
     tree: egui_tiles::Tree<Pane>,
     picked_path: Option<String>,
     input_tx: single_value_channel::Updater<Mat4>,
+    settings: Arc<Mutex<Settings>>,
 }
 
 impl Editor {
@@ -358,12 +373,15 @@ impl Editor {
         height: u32,
         rx: Receiver<Vec<Color>>,
         input_tx: single_value_channel::Updater<Mat4>,
+        settings: Arc<Mutex<Settings>>,
     ) -> Self {
+        let tree = create_tree(rx, settings.clone());
         Self {
             viewport: RenderView::new(_cc, width, height),
-            tree: create_tree(rx),
+            tree,
             picked_path: None,
             input_tx,
+            settings,
         }
     }
 }
@@ -407,14 +425,14 @@ impl eframe::App for Editor {
                 });
             });
         });
-        egui::SidePanel::left("tree").show(ctx, |ui| {
-            ui.collapsing("Tree", |ui| {
-                let tree_debug = format!("{:#?}", self.tree);
-                ui.monospace(&tree_debug);
-            });
+        // egui::SidePanel::left("tree").show(ctx, |ui| {
+        //     ui.collapsing("Tree", |ui| {
+        //         let tree_debug = format!("{:#?}", self.tree);
+        //         ui.monospace(&tree_debug);
+        //     });
 
-            ui.separator();
-        });
+        //     ui.separator();
+        // });
         egui::CentralPanel::default().show(ctx, |ui| {
             let mut behavior = TreeBehavior {};
             self.tree.ui(&mut behavior, ui);
@@ -462,11 +480,17 @@ fn main() -> Result<(), eframe::Error> {
     let (render_result_tx, render_result_rx): (Sender<Vec<Color>>, Receiver<Vec<Color>>) =
         crossbeam_channel::unbounded();
 
+    let settings: Settings = Settings {
+        color: glm::vec3(1.0f32, 1.0f32, 1.0f32),
+    };
+    let settings = Arc::new(Mutex::new(settings));
+
     let path_tracer_render_lock = Arc::new(RwLock::new(PathTracerRenderContext::new(
         256,
         256,
         render_result_tx.clone(),
         matrix_receiver,
+        settings.clone(),
     )));
     let pt_render = path_tracer_render_lock.clone();
     thread::spawn(move || loop {
@@ -485,17 +509,21 @@ fn main() -> Result<(), eframe::Error> {
                 256,
                 render_result_rx,
                 matrix_updater,
+                settings,
             )))
         }),
     )
 }
 
-fn create_tree(render_result_rx: Receiver<Vec<Color>>) -> egui_tiles::Tree<Pane> {
+fn create_tree(
+    render_result_rx: Receiver<Vec<Color>>,
+    settings: Arc<Mutex<Settings>>,
+) -> egui_tiles::Tree<Pane> {
     let mut next_view_nr = 0;
-    let mut gen_pane = || {
+    let gen_pane = || {
         let pane = Pane {
             nr: next_view_nr,
-            kind: PaneType::Settings,
+            kind: PaneType::Settings(settings),
         };
         next_view_nr += 1;
         pane
