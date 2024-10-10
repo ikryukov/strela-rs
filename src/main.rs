@@ -43,12 +43,13 @@ impl egui_wgpu::CallbackTrait for RenderViewCallback {
                 0,
                 bytemuck::cast_slice(image.as_slice()),
             );
+            let tex_width = resources.result_texture.size().width as usize;
             egui_encoder.copy_buffer_to_texture(
                 wgpu::ImageCopyBuffer {
                     buffer: &resources.staging_buffer,
                     layout: wgpu::ImageDataLayout {
                         offset: 0,
-                        bytes_per_row: Some((256 * std::mem::size_of::<glm::Vec4>()) as u32),
+                        bytes_per_row: Some((tex_width * std::mem::size_of::<glm::Vec4>()) as u32),
                         rows_per_image: None,
                     },
                 },
