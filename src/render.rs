@@ -6,7 +6,11 @@ extern crate nalgebra_glm as glm;
 use crate::Settings;
 use glm::{Mat4, Vec3};
 use log::info;
-use std::sync::{Arc, Mutex};
+use std::{
+    sync::{Arc, Mutex},
+    thread::sleep,
+    time::Duration,
+};
 
 #[repr(C)]
 #[derive(Copy, Clone, Debug, Default, bytemuck::Pod, bytemuck::Zeroable)]
@@ -86,6 +90,7 @@ pub fn run_iteration(pt_ctx: &mut PathTracerRenderContext) {
         }
         Err(_) => {
             debug!("swapchain is full");
+            sleep(Duration::from_millis(16));
         }
     }
 }

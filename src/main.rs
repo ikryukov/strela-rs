@@ -439,7 +439,7 @@ impl eframe::App for Editor {
         });
 
         // TODO: high cpu usage here we need to repaint only render viewport
-        ctx.request_repaint();
+        // ctx.request_repaint();
     }
 }
 
