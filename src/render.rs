@@ -1,5 +1,5 @@
 use crossbeam_channel::Sender;
-use tracing::debug;
+use tracing::{debug, error};
 
 extern crate nalgebra_glm as glm;
 
@@ -57,14 +57,19 @@ pub fn run_iteration(pt_ctx: &mut PathTracerRenderContext) {
     let camera_matrix = pt_ctx.input_rx.latest();
     info!("camera matrix: {}", camera_matrix);
 
-    let settings = pt_ctx.settings.lock().unwrap();
+    let mut bg_color = Color::new(1.0f32, 1.0f32, 1.0f32, 1.0f32);
+    // copy all settings here
+    if let Ok(settings) = pt_ctx.settings.lock() {
+        bg_color = Color::new(
+            settings.color[0],
+            settings.color[1],
+            settings.color[2],
+            1.0f32,
+        );
+    } else {
+        error!("Could not acquire settings lock, skipping this frame.");
+    }
 
-    let bg_color = Color::new(
-        settings.color[0],
-        settings.color[1],
-        settings.color[2],
-        1.0f32,
-    );
     let mut image_data = pt_ctx.image_data.lock().unwrap().clone();
     for i in 0..pt_ctx.result_height {
         for j in 0..pt_ctx.result_width {
