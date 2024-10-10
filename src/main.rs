@@ -478,7 +478,7 @@ fn main() -> Result<(), eframe::Error> {
     let (matrix_receiver, matrix_updater) =
         single_value_channel::channel_starting_with(Mat4::identity());
     let (render_result_tx, render_result_rx): (Sender<Vec<Color>>, Receiver<Vec<Color>>) =
-        crossbeam_channel::unbounded();
+        crossbeam_channel::bounded(3);
 
     let settings: Settings = Settings {
         color: glm::vec3(1.0f32, 1.0f32, 1.0f32),

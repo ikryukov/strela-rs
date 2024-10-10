@@ -1,4 +1,5 @@
 use crossbeam_channel::Sender;
+use tracing::debug;
 
 extern crate nalgebra_glm as glm;
 
@@ -74,5 +75,12 @@ pub fn run_iteration(pt_ctx: &mut PathTracerRenderContext) {
             image_data[(i * pt_ctx.result_width + j) as usize] = col;
         }
     }
-    let _ = pt_ctx.tx.send(image_data);
+    match pt_ctx.tx.try_send(image_data) {
+        Ok(_) => {
+            debug!("frame has sent");
+        }
+        Err(_) => {
+            debug!("swapchain is full");
+        }
+    }
 }
