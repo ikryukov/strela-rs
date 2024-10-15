@@ -376,6 +376,7 @@ impl Editor {
         input_tx: single_value_channel::Updater<Mat4>,
         settings: Arc<Mutex<Settings>>,
     ) -> Self {
+        catppuccin_egui::set_theme(&_cc.egui_ctx, catppuccin_egui::MOCHA);
         let tree = create_tree(rx, settings.clone());
         Self {
             viewport: RenderView::new(_cc, width, height),
